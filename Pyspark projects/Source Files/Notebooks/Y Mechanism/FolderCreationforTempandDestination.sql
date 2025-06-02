@@ -1,0 +1,24 @@
+-- Databricks notebook source
+-- MAGIC %md
+-- MAGIC ## # ### FOLDER CREATION FOR DESTINATION AND **TEMP**
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC
+-- MAGIC
+-- MAGIC Des_exists = s3.list_objects_v2(Bucket=bucket_name, Prefix=Des_Chunk_path)
+-- MAGIC
+-- MAGIC Temp_exists = s3.list_objects_v2(Bucket=bucket_name, Prefix=temp_Chunk_path)
+-- MAGIC
+-- MAGIC if 'Contents' not in Temp_exists:
+-- MAGIC     s3.put_object(Bucket=bucket_name, Key=temp_Chunk_path)
+-- MAGIC     print(f"✅ Created folder: {temp_Chunk_path}")
+-- MAGIC else:
+-- MAGIC     print(f"✅ Folder already exists: {temp_Chunk_path}")
+-- MAGIC
+-- MAGIC if 'Contents' not in Des_exists:
+-- MAGIC     s3.put_object(Bucket=bucket_name, Key=Des_Chunk_path)
+-- MAGIC     print(f"✅ Created folder: {Des_Chunk_path}")
+-- MAGIC else:
+-- MAGIC     print(f"✅ Folder already exists: {Des_Chunk_path}")

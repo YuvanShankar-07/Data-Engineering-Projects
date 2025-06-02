@@ -1,0 +1,16 @@
+-- Databricks notebook source
+-- MAGIC %python
+-- MAGIC
+-- MAGIC Des_Chunk_path = "OutputFiles/Detection_Files/"
+-- MAGIC
+-- MAGIC temp_Chunk_path = "s3://pysparkprojects/OutputFiles/Temporary_Detection/"
+-- MAGIC
+-- MAGIC Bucket_Name = "pysparkprojects"
+-- MAGIC
+-- MAGIC Chunks_Size = 50
+-- MAGIC
+-- MAGIC
+-- MAGIC dbutils.jobs.taskValues.set(key="Destination", value=Des_Chunk_path)
+-- MAGIC dbutils.jobs.taskValues.set(key="Temporary", value=temp_Chunk_path)
+-- MAGIC dbutils.jobs.taskValues.set(key="Bucket_Name", value=Bucket_Name)
+-- MAGIC dbutils.jobs.taskValues.set(key="Chunks_Size", value=Chunks_Size)

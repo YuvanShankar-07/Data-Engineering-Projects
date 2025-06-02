@@ -1,0 +1,113 @@
+-- Databricks notebook source
+-- MAGIC %run "/Workspace/Users/yuvan.shankar.m@accenture.com/Pyspark Projects/FINAL/Connection_Establishment"
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC
+-- MAGIC Chunk_Limit = int(dbutils.jobs.taskValues.get(taskKey="path_configuration", key="Chunks_Size", debugValue=0))
+-- MAGIC Des_Chunk_path = str(dbutils.jobs.taskValues.get(taskKey="path_configuration", key="Destination", debugValue=""))
+-- MAGIC temp_Chunk_path = str(dbutils.jobs.taskValues.get(taskKey="path_configuration", key="Temporary", debugValue=""))
+-- MAGIC bucket_name = str(dbutils.jobs.taskValues.get(taskKey="path_configuration", key="Bucket_Name", debugValue=""))
+-- MAGIC
+-- MAGIC csv_filepath = str(dbutils.jobs.taskValues.get(taskKey="Input_Read", key="input_filepath", debugValue=""))
+-- MAGIC filename_csv = str(dbutils.jobs.taskValues.get(taskKey="Input_Read", key="filename_csv", debugValue=""))
+-- MAGIC JOBstarttime = str(dbutils.jobs.taskValues.get(taskKey="Input_Read", key="JOBstarttime", debugValue=""))
+-- MAGIC
+-- MAGIC
+-- MAGIC print("Des_Chunk_path:", Des_Chunk_path)
+-- MAGIC print("temp_Chunk_path:", temp_Chunk_path)
+-- MAGIC print("bucket_name:", bucket_name)
+-- MAGIC print("csv_filepath:", csv_filepath)
+-- MAGIC print("filename_csv:", filename_csv)
+-- MAGIC print("JOBstarttime:", JOBstarttime)
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC spark.sparkContext._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
+-- MAGIC spark.sparkContext._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
+-- MAGIC spark.sparkContext._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "s3.amazonaws.com")
+-- MAGIC
+-- MAGIC spark.sparkContext._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "s3.us-east-1.amazonaws.com")
+
+-- COMMAND ----------
+
+-- MAGIC
+-- MAGIC %python
+-- MAGIC from datetime import datetime
+-- MAGIC
+-- MAGIC pattern2_df = spark.table("yuvan_05_may.pattern2")
+-- MAGIC
+-- MAGIC pattern2_df.show(1)
+-- MAGIC
+-- MAGIC record_count = pattern2_df.count()
+-- MAGIC
+-- MAGIC if record_count >0 :
+-- MAGIC     Detection_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+-- MAGIC     print("Records Found for PATTERN 2 " + str(record_count))
+-- MAGIC     ptd1_count = record_count
+-- MAGIC
+-- MAGIC else :
+-- MAGIC     print("No Records Found")
+-- MAGIC     dbutils.notebook.exit("Stopped early due to No Records Found.")
+-- MAGIC
+-- MAGIC
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC from pyspark.sql import functions as F
+-- MAGIC
+-- MAGIC
+-- MAGIC Chunk_dataframe = spark.read.option("header", "true").csv(csv_filepath)
+-- MAGIC
+-- MAGIC pattern2_detection_df = Chunk_dataframe.alias("chunks").join(
+-- MAGIC     pattern2_df.alias("p1"),
+-- MAGIC     on=[
+-- MAGIC         F.col("chunks.customer") == F.col("p1.Source"),
+-- MAGIC         F.col("chunks.merchant") == F.col("p1.Target")
+-- MAGIC     ],
+-- MAGIC     how="inner"
+-- MAGIC )
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC from pyspark.sql.functions import count, row_number,lit
+-- MAGIC from pyspark.sql.window import Window
+-- MAGIC
+-- MAGIC
+-- MAGIC if pattern2_detection_df.count() ==0 :
+-- MAGIC     print("No Records Found For Detection")
+-- MAGIC     dbutils.notebook.exit("Stopped early due to No Records Found.")
+-- MAGIC
+-- MAGIC pattern2_add_colums = pattern2_detection_df.withColumn("YStartTime", F.lit(JOBstarttime)) \
+-- MAGIC                     .withColumn("detectionTime", F.lit(Detection_time)) \
+-- MAGIC                     .withColumn("patternId", F.lit("PatId2")) \
+-- MAGIC                     .withColumn("ActionType", F.lit("CHILD"))
+-- MAGIC
+-- MAGIC pattern2_detections_final = pattern2_add_colums.select(
+-- MAGIC     F.col("YStartTime").alias("YStartTimeIST"),
+-- MAGIC     F.col("detectionTime").alias("detectionTimeIST"),
+-- MAGIC     "patternId",
+-- MAGIC     "ActionType",
+-- MAGIC     F.col("customer").alias("CustomerName"),
+-- MAGIC     F.col("merchant").alias("MerchantId")
+-- MAGIC )
+-- MAGIC
+-- MAGIC processed_dataframe = pattern2_detections_final
+-- MAGIC
+-- MAGIC namesplit = filename_csv.split('.')
+-- MAGIC
+-- MAGIC filename_csv = namesplit[0]
+-- MAGIC
+-- MAGIC table_name = f"yuvan_05_may.{filename_csv}"
+-- MAGIC
+-- MAGIC processed_dataframe.write.mode("append").saveAsTable(table_name)
+-- MAGIC
+-- MAGIC print(f"Writing to table. TABLE {filename_csv}")
+-- MAGIC
+-- MAGIC processed_dataframe.show(1)
+-- MAGIC
+-- MAGIC print("Detection found for Pattern 2 " + str(processed_dataframe.count()))

@@ -1,0 +1,139 @@
+-- Databricks notebook source
+-- MAGIC %python
+-- MAGIC %pip install --upgrade gdown
+
+-- COMMAND ----------
+
+-- MAGIC
+-- MAGIC %run "/Workspace/Users/yuvan.shankar.m@accenture.com/Pyspark Projects/Secrets"
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC import boto3
+-- MAGIC
+-- MAGIC
+-- MAGIC s3 = boto3.client(
+-- MAGIC     's3',
+-- MAGIC     aws_access_key_id=access_key,
+-- MAGIC     aws_secret_access_key=secret_key
+-- MAGIC )
+-- MAGIC
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC print(1)
+-- MAGIC try:
+-- MAGIC     response = s3.list_objects_v2(Bucket="pysparkprojects", Prefix="OutputFiles/")
+-- MAGIC     if 'Contents' in response:
+-- MAGIC         print("✅ S3 connection successful. Found files:")
+-- MAGIC         for obj in response['Contents']:
+-- MAGIC             print(obj['Key'])
+-- MAGIC     else:
+-- MAGIC         print("✅ Connected but no files found in the path.")
+-- MAGIC except Exception as e:
+-- MAGIC     print("❌ Connection failed:", e)
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC from pyspark.sql.functions import count, row_number,lit
+-- MAGIC from pyspark.sql.window import Window
+-- MAGIC import os, gdown
+-- MAGIC
+-- MAGIC file_id = '1AGXVlDhbMbhoGXDJG0IThnqz86Qy3hqb'  
+-- MAGIC output = '/dbfs/tmp/transactions.csv'  
+-- MAGIC
+-- MAGIC gdown.download(f'https://drive.google.com/uc?id={file_id}', output, quiet=False)
+-- MAGIC
+-- MAGIC tempfilename = spark.read.option("quote", "'").csv("/tmp/transactions.csv",header=True)
+-- MAGIC
+-- MAGIC filename = os.path.basename("/FileStore/yuvan_may_2025/Projects/Pyspark Projects/CSV Files/Transactions/transactions.csv")
+-- MAGIC
+-- MAGIC filename_csv = os.path.splitext(filename)[0]
+-- MAGIC
+-- MAGIC window_spec = Window.orderBy(lit(1)) 
+-- MAGIC
+-- MAGIC processed_dataframe = tempfilename.withColumn("unique_id", row_number().over(window_spec))
+-- MAGIC
+-- MAGIC transaction_count = processed_dataframe.count()
+-- MAGIC
+-- MAGIC print(f"Total number of transactions: {transaction_count}")
+-- MAGIC
+-- MAGIC processed_dataframe.show()
+-- MAGIC
+-- MAGIC
+
+-- COMMAND ----------
+
+-- MAGIC %python
+-- MAGIC import math
+-- MAGIC import os
+-- MAGIC import shutil
+-- MAGIC
+-- MAGIC Chunk_Limit =  10000
+-- MAGIC
+-- MAGIC start,end=0,0
+-- MAGIC
+-- MAGIC totaltransaction = math.ceil(transaction_count / Chunk_Limit)
+-- MAGIC
+-- MAGIC Des_Chunk_path = "OutputFiles/Input_chunks/"
+-- MAGIC
+-- MAGIC temp_Chunk_path = "s3://pysparkprojects/OutputFiles/Temporary_Chunks/"
+-- MAGIC
+-- MAGIC bucket_name = "pysparkprojects"
+-- MAGIC
+-- MAGIC Des_exists = s3.list_objects_v2(Bucket=bucket_name, Prefix=Des_Chunk_path)
+-- MAGIC
+-- MAGIC Temp_exists = s3.list_objects_v2(Bucket=bucket_name, Prefix=temp_Chunk_path)
+-- MAGIC
+-- MAGIC if 'Contents' not in Temp_exists:
+-- MAGIC     s3.put_object(Bucket=bucket_name, Key=temp_Chunk_path)
+-- MAGIC     print(f"✅ Created folder: {temp_Chunk_path}")
+-- MAGIC else:
+-- MAGIC     print(f"✅ Folder already exists: {temp_Chunk_path}")
+-- MAGIC
+-- MAGIC if 'Contents' not in Des_exists:
+-- MAGIC     s3.put_object(Bucket=bucket_name, Key=Des_Chunk_path)
+-- MAGIC     print(f"✅ Created folder: {Des_Chunk_path}")
+-- MAGIC else:
+-- MAGIC     print(f"✅ Folder already exists: {Des_Chunk_path}")
+-- MAGIC
+-- MAGIC for indextracker in range(0,totaltransaction):
+-- MAGIC
+-- MAGIC     print("Processing for Chunk file " + str(indextracker))
+-- MAGIC
+-- MAGIC     end = start + 10000 -1
+-- MAGIC
+-- MAGIC     chunk_splits = processed_dataframe.filter("unique_id >= " + str(start) + " and unique_id <= " + str(end))
+-- MAGIC
+-- MAGIC     chunk_splits.write.mode("overwrite").option("header", "true").csv(temp_Chunk_path)
+-- MAGIC
+-- MAGIC     print(f"✅ Write successful at {temp_Chunk_path}")
+-- MAGIC
+-- MAGIC     Des_final_Chunk_path = os.path.join(Des_Chunk_path, f"{filename_csv}_Chunk_{indextracker}.csv")
+-- MAGIC
+-- MAGIC     response = s3.list_objects_v2(Bucket="pysparkprojects", Prefix="OutputFiles/Temporary_Chunks/")
+-- MAGIC     if 'Contents' in response:
+-- MAGIC         for obj in response['Contents']:
+-- MAGIC             key = obj['Key']
+-- MAGIC             file = os.path.basename(key)
+-- MAGIC             if file.startswith("part-") and file.endswith(".csv"):
+-- MAGIC                 source_bucket = 'pysparkprojects'
+-- MAGIC                 source_key = key
+-- MAGIC                 destination_key = Des_final_Chunk_path
+-- MAGIC                 s3.copy_object(Bucket=source_bucket,
+-- MAGIC                 CopySource={'Bucket': source_bucket, 'Key': source_key},
+-- MAGIC                 Key=destination_key
+-- MAGIC                 )
+-- MAGIC                 print(Des_final_Chunk_path)
+-- MAGIC                 s3.delete_object(Bucket='pysparkprojects', Key=source_key)
+-- MAGIC                 break
+-- MAGIC     print("Processed records from " + str(start)  + " to " + str(end) )
+-- MAGIC     start = start + 10000
+-- MAGIC
+-- MAGIC     
+-- MAGIC
+-- MAGIC     
+-- MAGIC

@@ -1,0 +1,62 @@
+-- Databricks notebook source
+-- MAGIC %python
+-- MAGIC import math
+-- MAGIC import os
+-- MAGIC import shutil
+-- MAGIC
+-- MAGIC start,end=0,0
+-- MAGIC
+-- MAGIC transaction_count = processed_dataframe.count()
+-- MAGIC
+-- MAGIC totaltransaction = math.ceil(transaction_count / Chunk_Limit)
+-- MAGIC
+-- MAGIC print(filename_csv)
+-- MAGIC
+-- MAGIC splits = temp_Chunk_path.split('/')
+-- MAGIC
+-- MAGIC print(splits)
+-- MAGIC pdprefix = "OutputFiles/Temporary_Detection/"
+-- MAGIC
+-- MAGIC
+-- MAGIC for indextracker in range(0,totaltransaction):
+-- MAGIC
+-- MAGIC     print("Processing for Detection file " + str(indextracker))
+-- MAGIC
+-- MAGIC     end = start + Chunk_Limit -1
+-- MAGIC
+-- MAGIC     chunk_splits = processed_dataframe.filter("unique_id >= " + str(start) + " and unique_id <= " + str(end))
+-- MAGIC
+-- MAGIC     selected_chunk_splits = chunk_splits.select("YStartTime(IST)","detectionTime(IST)","patternId","ActionType","CustomerName","MerchantId")
+-- MAGIC
+-- MAGIC     selected_chunk_splits.write.mode("overwrite").option("header", "true").csv(temp_Chunk_path)
+-- MAGIC
+-- MAGIC     print(f"✅ Write successful at temp path : {temp_Chunk_path}")
+-- MAGIC
+-- MAGIC     Des_final_Chunk_path = os.path.join(Des_Chunk_path, f"{filename_csv}_DETECTION_{indextracker}.csv")
+-- MAGIC
+-- MAGIC     response = s3.list_objects_v2(Bucket=bucket_name, Prefix=pdprefix)
+-- MAGIC     if 'Contents' in response:
+-- MAGIC         for obj in response['Contents']:
+-- MAGIC             key = obj['Key']
+-- MAGIC             file = os.path.basename(key)
+-- MAGIC             if file.startswith("part-") and file.endswith(".csv"):
+-- MAGIC                 source_bucket = bucket_name
+-- MAGIC                 source_key = key
+-- MAGIC                 destination_key = Des_final_Chunk_path
+-- MAGIC                 s3.copy_object(Bucket=source_bucket,
+-- MAGIC                 CopySource={'Bucket': source_bucket, 'Key': source_key},
+-- MAGIC                 Key=destination_key
+-- MAGIC                 )
+-- MAGIC                 print(f"✅ File moved and renamed successful at the path : {Des_final_Chunk_path}")
+-- MAGIC                 s3.delete_object(Bucket=bucket_name, Key=source_key)
+-- MAGIC                 break
+-- MAGIC     if indextracker == totaltransaction - 1:
+-- MAGIC         print("Processed records from " + str(start)  + " to " + str(transaction_count) )
+-- MAGIC     else :
+-- MAGIC         print("Processed records from " + str(start)  + " to " + str(end) )
+-- MAGIC     start = start + Chunk_Limit
+-- MAGIC
+-- MAGIC     
+-- MAGIC
+-- MAGIC     
+-- MAGIC
