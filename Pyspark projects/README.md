@@ -108,3 +108,8 @@ Monitors S3 input path for new chunk files, processes each file once, applies pa
 
 | `File_Writes_from_table_to_file`	| Retrieves detection records from the filename-specific table and creates a DataFrame for S3 output|
 
+
+#### OUTPUTS :
+
+Output Files -  Detection Files and Chunk Files saved as Zip
+
